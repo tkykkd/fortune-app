@@ -1,20 +1,52 @@
 import streamlit as st
 import google.generativeai as genai
 import datetime
+# ★ 修正点1: kanjizeライブラリのインポート
+from kanjize import kanji2strokes
 
 # --- ページ設定 ---
 st.set_page_config(page_title="AI統合運勢鑑定", page_icon="🌌", layout="wide")
 
-# --- ロジック群 (変更なし) ---
+# --- 画数辞書は削除 --- (kanjizeに置き換え)
+
+# --- ロジック群 ---
 def calculate_gokaku(sei_strokes, mei_strokes):
+    # 天格・地格・人格・外格・総格の五格を計算
     ten = sum(sei_strokes)
     chi = sum(mei_strokes)
+    # 苗字の最後の漢字と名前の最初の漢字の画数
     jin = sei_strokes[-1] + mei_strokes[0]
-    gai = sei_strokes[0] + mei_strokes[-1]
+    
+    # 多くの流派に合わせ、外格を (総格 - 人格)とするロジックを採用
     sou = ten + chi
+    gai = sou - jin
+    
     return {"天格": ten, "人格": jin, "地格": chi, "外格": gai, "総格": sou}
 
+# ★ 修正点2: kanjizeを利用した画数自動計算関数
+def get_strokes(name_kanji: str):
+    """漢字の文字列からkanjizeライブラリで画数を生成する"""
+    strokes = []
+    missing_kanji = []
+    
+    for char in name_kanji:
+        if char in (' ', '　'): # スペースは無視
+            continue
+        try:
+            # kanjizeに画数計算を任せる
+            strokes.append(kanji2strokes(char))
+        except ValueError:
+            # kanjizeが対応していない漢字の場合
+            missing_kanji.append(char)
+            
+    if missing_kanji:
+        # エラーメッセージを分かりやすく
+        raise ValueError(f"以下の漢字の画数データが見つかりません: {'、'.join(missing_kanji)}。お手数ですが、漢字を修正いただくか、別の名で再度お試しください。")
+    
+    return strokes
+
 def get_constellation(month, day):
+    # 星座計算ロジック（変更なし）
     zodiac_days = [
         (1, 20, "山羊座"), (2, 19, "水瓶座"), (3, 20, "魚座"), (4, 20, "牡羊座"),
         (5, 21, "牡牛座"), (6, 21, "双子座"), (7, 22, "蟹座"), (8, 23, "獅子座"),
@@ -31,19 +63,18 @@ def get_constellation(month, day):
     return "不明"
 
 def calculate_lifepath(dob):
+    # 数秘術ライフパスナンバー計算ロジック（変更なし）
     date_str = dob.strftime("%Y%m%d")
     def recursive_sum(n_str):
         total = sum(int(d) for d in n_str)
-        if total in [11, 22, 33]: return total
+        if total in [11, 22, 33]: return total # マスターナンバー
         if total < 10: return total
         return recursive_sum(str(total))
     return recursive_sum(date_str)
 
-# --- AIアドバイザー ---
-# APIキー引数を削除し、secretsから読み込む
+# --- AIアドバイザー（Geminiキーのsecretsからの読み込みは変更なし） ---
 def get_valid_model_name():
     try:
-        # APIキーはsecretsから取得
         api_key = st.secrets["GEMINI_API_KEY"]
         genai.configure(api_key=api_key)
         for m in genai.list_models():
@@ -51,8 +82,7 @@ def get_valid_model_name():
                 if 'gemini-1.5-flash' in m.name: return m.name
                 if 'gemini-pro' in m.name: return m.name
         return 'gemini-pro'
-    except:
-        # secretsからキーが読み込めない場合は'gemini-pro'を返すか、エラー処理を行う
+    except Exception:
         return 'gemini-pro'
 
 def get_gemini_advice(profile, gokaku, category):
@@ -61,8 +91,8 @@ def get_gemini_advice(profile, gokaku, category):
         model_name = get_valid_model_name()
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(model_name)
-    except Exception as e:
-        return f"【システムエラー】APIキーが設定されていません。: {str(e)}"
+    except Exception:
+        return f"【システムエラー】サービス提供者によるAPIキーが設定されていません。"
 
     today = datetime.date.today()
     current_period = f"{today.year}年{today.month}月"
@@ -119,31 +149,31 @@ def get_gemini_advice(profile, gokaku, category):
 st.title("🌌 AI統合運勢鑑定")
 st.markdown("姓名判断(詳細) × 言霊 × 占星術 × 月運戦略")
 
-# ★ 修正点 1: サイドバーのAPIキー入力欄を削除
+# APIキー管理（サイドバー）
 with st.sidebar:
     st.header("AI統合運勢鑑定")
     st.markdown("---")
-    # ここに将来的に収益化への導線（モデルA/B/C）を設置します
     st.info("このアプリは、AIマスターである開発者のAPIキーを用いて無料で提供されています。")
+    st.markdown("---")
+    st.caption("【AIマスターからの提案】")
+    st.markdown("より深い人生戦略レポートや個別コンサルティングをご希望の方は、[こちら](#)へ。") # 収益化導線のプレースホルダー
 
-# ★ 修正点 2: 入力フィールドの初期値をクリア
+# 入力フォーム
 with st.form("input_form"):
     col_name1, col_name2 = st.columns(2)
     with col_name1:
-        sei = st.text_input("苗字 (漢字)", value="")  # value=""
-        sei_yomi = st.text_input("苗字 (よみ)", value="")  # value=""
-        sei_kaku = st.text_input("苗字画数 (カンマ区切り)", value="")  # value=""
+        sei = st.text_input("苗字 (漢字)", value="") 
+        sei_yomi = st.text_input("苗字 (よみ)", value="")
     with col_name2:
-        mei = st.text_input("名前 (漢字)", value="")  # value=""
-        mei_yomi = st.text_input("名前 (よみ)", value="")  # value=""
-        mei_kaku = st.text_input("名前画数 (カンマ区切り)", value="")  # value=""
+        mei = st.text_input("名前 (漢字)", value="") 
+        mei_yomi = st.text_input("名前 (よみ)", value="")
+    
+    # 画数入力欄は削除済み
     
     col_attr1, col_attr2 = st.columns(2)
     with col_attr1:
-        # 生年月日を初期値なし（今日の日付）に変更
         dob = st.date_input("生年月日", value=datetime.date.today()) 
     with col_attr2:
-        # index=Noneで初期選択なしにすることも可能だが、ここでは0 (男性)のまま
         gender = st.radio("性別", ["男性", "女性"], horizontal=True) 
 
     category = st.selectbox("今回のテーマ（知りたいこと）", 
@@ -152,25 +182,24 @@ with st.form("input_form"):
     submitted = st.form_submit_button("詳細鑑定スタート ✨")
 
 if submitted:
-    # APIキーが設定されているかチェック
+    # APIキー設定チェック
     if "GEMINI_API_KEY" not in st.secrets:
         st.error("【システムエラー】サービス提供者によるAPIキーの設定が必要です。")
-        st.error("Streamlit CloudのSecretsに 'GEMINI_API_KEY' を登録してください。")
         st.stop()
     
     # 必須入力チェック
-    if not sei or not mei or not sei_kaku or not mei_kaku:
-        st.error("苗字・名前、および画数の入力を確認してください。")
+    if not sei or not mei:
+        st.error("苗字と名前（漢字）を入力してください。")
         st.stop()
 
     try:
-        # 計算処理
-        s_list = [int(x.strip()) for x in sei_kaku.split(",") if x.strip()]
-        m_list = [int(x.strip()) for x in mei_kaku.split(",") if x.strip()]
+        # 漢字入力から画数を自動計算 (kanjizeを使用)
+        s_list = get_strokes(sei) 
+        m_list = get_strokes(mei) 
         
-        # 画数リストが空でないことを確認
+        # 画数リストが空でないことを確認 (名前が全てスペースだった場合などの対応)
         if not s_list or not m_list:
-            raise ValueError("画数が正しく入力されていません。（例: 10,12）")
+            raise ValueError("有効な漢字が入力されていません。")
             
         gokaku = calculate_gokaku(s_list, m_list)
         constellation = get_constellation(dob.month, dob.day)
@@ -194,7 +223,6 @@ if submitted:
         
         # AI鑑定
         with st.spinner("今月の運命サイクルと戦略を構築しています..."):
-            # APIキーを引数から削除
             advice = get_gemini_advice(profile, gokaku, category) 
         
         st.markdown("---")
@@ -203,6 +231,7 @@ if submitted:
         st.balloons()
         
     except ValueError as ve:
+        # 画数計算でエラー（kanjizeにない漢字）が出た場合
         st.error(f"入力エラー: {ve}")
     except Exception as e:
         st.error(f"予期せぬエラーが発生しました: {e}")
