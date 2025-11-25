@@ -1,4 +1,5 @@
 # requirements.txt の内容
 streamlit
 google-generativeai
-kanjistroke
+# kanjistroke # ← この行を削除/コメントアウト
+pip install "https://github.com/hironow/name-kaku/archive/main.zip#egg=name_kaku" # ★この1行を追記★
