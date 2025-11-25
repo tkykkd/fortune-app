@@ -51,7 +51,7 @@ def get_valid_model_name(api_key):
     except:
         return 'gemini-pro'
 
-def get_gemini_advice(profile, gokaku, category, api_key):
+def get_gemini_advice(profile, gokaku, category): # ★api_keyを削除★
     model_name = get_valid_model_name(api_key)
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(model_name)
@@ -112,11 +112,8 @@ def get_gemini_advice(profile, gokaku, category, api_key):
 st.title("🌌 AI統合運勢鑑定")
 st.markdown("姓名判断(詳細) × 言霊 × 占星術 × 月運戦略")
 
-# APIキーはサイドバーで入力させる
-with st.sidebar:
-    api_key = st.text_input("Google Gemini APIキー", type="password")
-    st.markdown("[キーの取得はこちら(無料)](https://aistudio.google.com/app/apikey)")
-    st.info("※キーは保存されません。安心してお使いください。")
+# AIアプリ設定
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"]) # ★この行を追加★
 
 with st.form("input_form"):
     col_name1, col_name2 = st.columns(2)
@@ -141,10 +138,16 @@ with st.form("input_form"):
     submitted = st.form_submit_button("詳細鑑定スタート ✨")
 
 if submitted:
-    if not api_key:
-        st.error("左側のサイドバーにAPIキーを入力してください！")
-    else:
-        try:
+    # APIキーのチェックはsecretsから自動で取得されるため不要になる
+    # 念のため、Secretsの設定ミスに備える場合は以下のように変更
+    try:
+        _ = st.secrets["GOOGLE_API_KEY"] # APIキーが取得できるか試す
+    except KeyError:
+        st.error("Google Gemini APIキーがStreamlit Secretsに設定されていません。サイドバーのリンクからAPIキーを取得し、Streamlit Cloudのアプリ設定画面で「GOOGLE_API_KEY」として登録してください。")
+        return # これ以上処理を進めない
+    
+    try:
+        # ... 以下の処理 ...
             # 計算処理
             s_list = [int(x) for x in sei_kaku.split(",")]
             m_list = [int(x) for x in mei_kaku.split(",")]
@@ -170,7 +173,7 @@ if submitted:
             
             # AI鑑定
             with st.spinner("今月の運命サイクルと戦略を構築しています..."):
-                advice = get_gemini_advice(profile, gokaku, category, api_key)
+                advice = get_gemini_advice(profile, gokaku, category) # ★api_keyを削除★
             
             st.markdown("---")
             st.subheader(f"📜 {sei} {mei} 様の運勢鑑定書")
