@@ -1,3 +1,4 @@
 # requirements.txt の内容
 streamlit
 google-generativeai
+kanjistroke
