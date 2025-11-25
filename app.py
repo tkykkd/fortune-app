@@ -5,7 +5,7 @@ import datetime
 # --- ページ設定 ---
 st.set_page_config(page_title="AI統合運勢鑑定", page_icon="🌌", layout="wide")
 
-# --- ロジック群 ---
+# --- ロジック群 (変更なし) ---
 def calculate_gokaku(sei_strokes, mei_strokes):
     ten = sum(sei_strokes)
     chi = sum(mei_strokes)
@@ -40,26 +40,33 @@ def calculate_lifepath(dob):
     return recursive_sum(date_str)
 
 # --- AIアドバイザー ---
-def get_valid_model_name(api_key):
-    genai.configure(api_key=api_key)
+# APIキー引数を削除し、secretsから読み込む
+def get_valid_model_name():
     try:
+        # APIキーはsecretsから取得
+        api_key = st.secrets["GEMINI_API_KEY"]
+        genai.configure(api_key=api_key)
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 if 'gemini-1.5-flash' in m.name: return m.name
                 if 'gemini-pro' in m.name: return m.name
         return 'gemini-pro'
     except:
+        # secretsからキーが読み込めない場合は'gemini-pro'を返すか、エラー処理を行う
         return 'gemini-pro'
 
-def get_gemini_advice(profile, gokaku, category, api_key):
-    model_name = get_valid_model_name(api_key)
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
+def get_gemini_advice(profile, gokaku, category):
+    try:
+        api_key = st.secrets["GEMINI_API_KEY"]
+        model_name = get_valid_model_name()
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
+    except Exception as e:
+        return f"【システムエラー】APIキーが設定されていません。: {str(e)}"
 
     today = datetime.date.today()
     current_period = f"{today.year}年{today.month}月"
 
-    # ★ここが修正箇所！バックスラッシュを削除しました
     prompt = f"""
     あなたは、相談者の人生戦略を共に考える「専属の運命コンサルタント」です。
     以下のデータを元に、深く、信頼感のある分析とアドバイスを行ってください。
@@ -106,34 +113,38 @@ def get_gemini_advice(profile, gokaku, category, api_key):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"エラー: {str(e)}"
+        return f"AI応答エラー: {str(e)}"
 
 # --- UI構築 ---
 st.title("🌌 AI統合運勢鑑定")
 st.markdown("姓名判断(詳細) × 言霊 × 占星術 × 月運戦略")
 
-# APIキーはサイドバーで入力させる
+# ★ 修正点 1: サイドバーのAPIキー入力欄を削除
 with st.sidebar:
-    api_key = st.text_input("Google Gemini APIキー", type="password")
-    st.markdown("[キーの取得はこちら(無料)](https://aistudio.google.com/app/apikey)")
-    st.info("※キーは保存されません。安心してお使いください。")
+    st.header("AI統合運勢鑑定")
+    st.markdown("---")
+    # ここに将来的に収益化への導線（モデルA/B/C）を設置します
+    st.info("このアプリは、AIマスターである開発者のAPIキーを用いて無料で提供されています。")
 
+# ★ 修正点 2: 入力フィールドの初期値をクリア
 with st.form("input_form"):
     col_name1, col_name2 = st.columns(2)
     with col_name1:
-        sei = st.text_input("苗字 (漢字)")
-        sei_yomi = st.text_input("苗字 (よみ)")
-        sei_kaku = st.text_input("苗字画数 (カンマ区切り)", "10,12")
+        sei = st.text_input("苗字 (漢字)", value="")  # value=""
+        sei_yomi = st.text_input("苗字 (よみ)", value="")  # value=""
+        sei_kaku = st.text_input("苗字画数 (カンマ区切り)", value="")  # value=""
     with col_name2:
-        mei = st.text_input("名前 (漢字)")
-        mei_yomi = st.text_input("名前 (よみ)")
-        mei_kaku = st.text_input("名前画数 (カンマ区切り)", "12,11")
+        mei = st.text_input("名前 (漢字)", value="")  # value=""
+        mei_yomi = st.text_input("名前 (よみ)", value="")  # value=""
+        mei_kaku = st.text_input("名前画数 (カンマ区切り)", value="")  # value=""
     
     col_attr1, col_attr2 = st.columns(2)
     with col_attr1:
-        dob = st.date_input("生年月日", datetime.date(1990, 1, 1))
+        # 生年月日を初期値なし（今日の日付）に変更
+        dob = st.date_input("生年月日", value=datetime.date.today()) 
     with col_attr2:
-        gender = st.radio("性別", ["男性", "女性"], horizontal=True)
+        # index=Noneで初期選択なしにすることも可能だが、ここでは0 (男性)のまま
+        gender = st.radio("性別", ["男性", "女性"], horizontal=True) 
 
     category = st.selectbox("今回のテーマ（知りたいこと）", 
                             ["仕事・キャリア・成功", "金運・財運", "人間関係・対人", "恋愛・結婚・パートナー", "自分の才能・強み"])
@@ -141,41 +152,57 @@ with st.form("input_form"):
     submitted = st.form_submit_button("詳細鑑定スタート ✨")
 
 if submitted:
-    if not api_key:
-        st.error("左側のサイドバーにAPIキーを入力してください！")
-    else:
-        try:
-            # 計算処理
-            s_list = [int(x) for x in sei_kaku.split(",")]
-            m_list = [int(x) for x in mei_kaku.split(",")]
-            gokaku = calculate_gokaku(s_list, m_list)
-            constellation = get_constellation(dob.month, dob.day)
-            lifepath = calculate_lifepath(dob)
+    # APIキーが設定されているかチェック
+    if "GEMINI_API_KEY" not in st.secrets:
+        st.error("【システムエラー】サービス提供者によるAPIキーの設定が必要です。")
+        st.error("Streamlit CloudのSecretsに 'GEMINI_API_KEY' を登録してください。")
+        st.stop()
+    
+    # 必須入力チェック
+    if not sei or not mei or not sei_kaku or not mei_kaku:
+        st.error("苗字・名前、および画数の入力を確認してください。")
+        st.stop()
+
+    try:
+        # 計算処理
+        s_list = [int(x.strip()) for x in sei_kaku.split(",") if x.strip()]
+        m_list = [int(x.strip()) for x in mei_kaku.split(",") if x.strip()]
+        
+        # 画数リストが空でないことを確認
+        if not s_list or not m_list:
+            raise ValueError("画数が正しく入力されていません。（例: 10,12）")
             
-            profile = {
-                "name_kanji": f"{sei} {mei}",
-                "name_yomi": f"{sei_yomi} {mei_yomi}",
-                "gender": gender,
-                "constellation": constellation,
-                "lifepath": lifepath
-            }
-            
-            st.success("詳細分析を実行中...")
-            
-            # スペック表示
-            c1, c2, c3 = st.columns(3)
-            c1.metric("星座", constellation)
-            c2.metric("数秘", str(lifepath))
-            c3.metric("総格", f"{gokaku['総格']}画")
-            
-            # AI鑑定
-            with st.spinner("今月の運命サイクルと戦略を構築しています..."):
-                advice = get_gemini_advice(profile, gokaku, category, api_key)
-            
-            st.markdown("---")
-            st.subheader(f"📜 {sei} {mei} 様の運勢鑑定書")
-            st.markdown(advice)
-            st.balloons()
-            
-        except Exception as e:
-            st.error(f"エラー: {e}")
+        gokaku = calculate_gokaku(s_list, m_list)
+        constellation = get_constellation(dob.month, dob.day)
+        lifepath = calculate_lifepath(dob)
+        
+        profile = {
+            "name_kanji": f"{sei} {mei}",
+            "name_yomi": f"{sei_yomi} {mei_yomi}",
+            "gender": gender,
+            "constellation": constellation,
+            "lifepath": lifepath
+        }
+        
+        st.success("詳細分析を実行中...")
+        
+        # スペック表示
+        c1, c2, c3 = st.columns(3)
+        c1.metric("星座", constellation)
+        c2.metric("数秘", str(lifepath))
+        c3.metric("総格", f"{gokaku['総格']}画")
+        
+        # AI鑑定
+        with st.spinner("今月の運命サイクルと戦略を構築しています..."):
+            # APIキーを引数から削除
+            advice = get_gemini_advice(profile, gokaku, category) 
+        
+        st.markdown("---")
+        st.subheader(f"📜 {sei} {mei} 様の運勢鑑定書")
+        st.markdown(advice)
+        st.balloons()
+        
+    except ValueError as ve:
+        st.error(f"入力エラー: {ve}")
+    except Exception as e:
+        st.error(f"予期せぬエラーが発生しました: {e}")
