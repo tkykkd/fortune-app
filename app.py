@@ -120,12 +120,7 @@ with st.form("input_form"):
     
     col_attr1, col_attr2 = st.columns(2)
     with col_attr1:
-    dob = st.date_input(
-        "生年月日", 
-        value=datetime.date(1990, 1, 1), # 初期値
-        min_value=datetime.date(1930, 1, 1), # ★最小値: 1930年1月1日★
-        max_value=datetime.date(2025, 12, 31) # ★最大値: 2025年12月31日★
-    )
+    dob = st.date_input("生年月日", datetime.date(1990, 1, 1), min_value=datetime.date(1930, 1, 1), max_value=datetime.date(2025, 12, 31))
     with col_attr2:
         gender = st.radio("性別", ["男性", "女性"], horizontal=True)
 
