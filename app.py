@@ -1,15 +1,15 @@
 import streamlit as st
 import google.generativeai as genai
 import datetime
-# 【修正1】画数自動計算ライブラリのインポート (name-kakuを使用)
-from name_kaku.kakusuu import namekaku 
 
 # --- ページ設定 ---
 st.set_page_config(page_title="AI統合運勢鑑定", page_icon="🌌", layout="wide")
 
 # --- ロジック群 ---
+# 五格の計算ロジックはそのまま残しますが、UIではAIに計算させるため使用しません。
+# AIに五格の計算ロジックを与えるための参考として残します。
 def calculate_gokaku(sei_strokes, mei_strokes):
-    """姓名判断の五格を計算する"""
+    """姓名判断の五格を計算する (UIからは使用停止)"""
     ten = sum(sei_strokes)
     chi = sum(mei_strokes)
     jin = sei_strokes[-1] + mei_strokes[0]
@@ -44,20 +44,15 @@ def calculate_lifepath(dob):
         return recursive_sum(str(total))
     return recursive_sum(date_str)
 
-# 【修正2】get_kanji_strokes 関数は削除されました
-
 # --- AIアドバイザー ---
-# 【修正3】get_valid_model_name 関数は不要になったため削除
-
-def get_gemini_advice(profile, gokaku, category):
+def get_gemini_advice(profile, category): # 引数からgokakuを削除
     """AIに鑑定アドバイスを生成させる"""
-    # APIキーはgenai.configureで設定済み
     model = genai.GenerativeModel('gemini-1.5-flash') 
 
     today = datetime.date.today()
     current_period = f"{today.year}年{today.month}月"
 
-    # プロンプト (貴殿の最新プロンプトを使用)
+    # プロンプト (AIに画数計算をさせるように修正)
     prompt = f"""
     あなたは、相談者の人生戦略を共に考える「専属の運命コンサルタント」です。
     以下のデータを元に、深く、信頼感のある分析とアドバイスを行ってください。
@@ -69,7 +64,6 @@ def get_gemini_advice(profile, gokaku, category):
 
     【相談者データ】
     - 名前: {profile['name_kanji']} (読み: {profile['name_yomi']})
-    - 画数データ: {gokaku}
     - 星座: {profile['constellation']}
     - 数秘: {profile['lifepath']}
     - 性別: {profile['gender']}
@@ -79,7 +73,9 @@ def get_gemini_advice(profile, gokaku, category):
     ## 鑑定書構成 (Markdown形式)
 
     ### 1. 姓名判断と本質プロファイリング
-    まずは、あなたの画数が示す「社会的な運勢・才能」を詳しく紐解きます。
+    **【重要】相談者の名前（{profile['name_kanji']}）の漢字の画数を正確に計算し、五格（総格、人格、地格、外格、天格）を決定してください。**
+    その五格と、貴殿が持つ姓名判断のロジックに基づいて、画数が示す「社会的な運勢・才能」を詳しく紐解きます。
+    - **計算した五格**: ... （例：総格45画（吉））
     - **総格（晩年・全体）**: ...
     - **人格（性格・才能）**: ...
     - **地格（若年・行動）**: ...
@@ -108,9 +104,9 @@ def get_gemini_advice(profile, gokaku, category):
 
 # --- UI構築 ---
 st.title("🌌 AI統合運勢鑑定")
-st.markdown("姓名判断(詳細) × 言霊 × 占星術 × 月運戦略")
+st.markdown("姓名判断(AI計算) × 言霊 × 占星術 × 月運戦略")
 
-# 【修正4】APIキーはここで設定（Secretsから読み込む）
+# APIキーはここで設定（Secretsから読み込む）
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 with st.form("input_form"):
@@ -118,11 +114,9 @@ with st.form("input_form"):
     with col_name1:
         sei = st.text_input("姓 (漢字)", placeholder="例：山田", max_chars=10)
         sei_yomi = st.text_input("姓 (よみ)", placeholder="例：やまだ", max_chars=10)
-        # 手動画数入力欄は削除
     with col_name2:
         mei = st.text_input("名 (漢字)", placeholder="例：太郎", max_chars=10)
         mei_yomi = st.text_input("名 (よみ)", placeholder="例：たろう", max_chars=10)
-        # 手動画数入力欄は削除
     
     col_attr1, col_attr2 = st.columns(2)
     with col_attr1:
@@ -136,30 +130,25 @@ with st.form("input_form"):
     submitted = st.form_submit_button("詳細鑑定スタート ✨")
 
 if submitted:
-    # 【修正5】APIキーのチェック（Secretsの登録忘れがないか）
+    # APIキーのチェック
     try:
         _ = st.secrets["GOOGLE_API_KEY"]
     except KeyError:
         st.error("Google Gemini APIキーがStreamlit Secretsに設定されていません。アプリ設定画面で「GOOGLE_API_KEY」として登録してください。")
-        st.stop() # 処理を中断
+        st.stop()
         
-    if not sei or not mei:
-        st.error("姓と名の両方を漢字で入力してください。")
+    if not sei or not mei or not sei_yomi or not mei_yomi:
+        st.error("氏名（漢字・よみ）の全てを入力してください。")
         st.stop()
     
     try:
-        # 【修正6】画数計算 (自動化 - name-kakuライブラリを使用)
-        name_kakusuu = namekaku(sei, mei) # 姓と名をまとめて渡して画数情報を取得
-        sei_strokes_list = name_kakusuu.seis_kaku_list # 姓の画数リスト
-        mei_strokes_list = name_kakusuu.meis_kaku_list # 名の画数リスト
-        
-        gokaku = calculate_gokaku(sei_strokes_list, mei_strokes_list)
+        # 画数計算の外部ライブラリ依存を解消し、AI計算に一本化
         constellation = get_constellation(dob.month, dob.day)
         lifepath = calculate_lifepath(dob)
         
         profile = {
-            "name_kanji": f"{sei} {mei}",
-            "name_yomi": f"{sei_yomi} {mei_yomi}",
+            "name_kanji": f"{sei}{mei}", # AIに計算させるため漢字を渡す
+            "name_yomi": f"{sei_yomi}{mei_yomi}",
             "gender": gender,
             "constellation": constellation,
             "lifepath": lifepath
@@ -167,15 +156,15 @@ if submitted:
         
         st.success("詳細分析を実行中...")
         
-        # スペック表示
+        # スペック表示 (総格はAI計算に任せるためダミー表示)
         c1, c2, c3 = st.columns(3)
         c1.metric("星座", constellation)
         c2.metric("数秘", str(lifepath))
-        c3.metric("総格", f"{gokaku['総格']}画")
+        c3.metric("総格", "AI計算") # ★ダミー表示★
         
-        # AI鑑定
+        # AI鑑定 (profileとcategoryのみ渡し、画数はAIに計算させる)
         with st.spinner("今月の運命サイクルと戦略を構築しています..."):
-            advice = get_gemini_advice(profile, gokaku, category)
+            advice = get_gemini_advice(profile, category) # 引数からgokakuを削除
         
         st.markdown("---")
         st.subheader(f"📜 {sei} {mei} 様の運勢鑑定書")
