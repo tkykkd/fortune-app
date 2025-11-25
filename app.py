@@ -47,7 +47,7 @@ def calculate_lifepath(dob):
 # --- AIアドバイザー ---
 def get_gemini_advice(profile, category): # 引数からgokakuを削除
     """AIに鑑定アドバイスを生成させる"""
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+    model = genai.GenerativeModel('gemini-2.5-flash') # ★この行に修正 (推奨)★
 
     today = datetime.date.today()
     current_period = f"{today.year}年{today.month}月"
