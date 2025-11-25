@@ -1,9 +1,8 @@
 import streamlit as st
 import google.generativeai as genai
 import datetime
-# 【修正2-1】画数自動計算ライブラリのインポート
-# requirements.txtに「kanjistroke」の追加が必要です
-from kanjistroke import get_stroke_count 
+# 【修正1】画数自動計算ライブラリのインポート (name-kakuを使用)
+from name_kaku.kakusuu import namekaku 
 
 # --- ページ設定 ---
 st.set_page_config(page_title="AI統合運勢鑑定", page_icon="🌌", layout="wide")
@@ -45,32 +44,20 @@ def calculate_lifepath(dob):
         return recursive_sum(str(total))
     return recursive_sum(date_str)
 
-# 【修正2-2】漢字の画数を取得するヘルパー関数を追加
-def get_kanji_strokes(kanji_name):
-    """漢字の画数を取得する"""
-    strokes = []
-    for char in kanji_name:
-        try:
-            stroke_count = get_stroke_count(char)
-            strokes.append(stroke_count)
-        except ValueError:
-            st.error(f"漢字 '{char}' の画数情報がシステムにありません。画数鑑定を続行できません。")
-            st.stop() # 不明な漢字があれば処理を中断
-    return strokes
-
+# 【修正2】get_kanji_strokes 関数は削除されました
 
 # --- AIアドバイザー ---
-# 【修正1-1】この関数はAPIキーを引数に取らなくなったので、不要になりました。
-# def get_valid_model_name(api_key): ...
+# 【修正3】get_valid_model_name 関数は不要になったため削除
 
 def get_gemini_advice(profile, gokaku, category):
-    # 【修正1-2】APIキーはSecretsでグローバル設定済みのため、関数内での設定は不要に
-    model = genai.GenerativeModel('gemini-1.5-flash') # モデル名を直接指定
+    """AIに鑑定アドバイスを生成させる"""
+    # APIキーはgenai.configureで設定済み
+    model = genai.GenerativeModel('gemini-1.5-flash') 
 
     today = datetime.date.today()
     current_period = f"{today.year}年{today.month}月"
 
-    # プロンプトは貴殿の最新版を使用
+    # プロンプト (貴殿の最新プロンプトを使用)
     prompt = f"""
     あなたは、相談者の人生戦略を共に考える「専属の運命コンサルタント」です。
     以下のデータを元に、深く、信頼感のある分析とアドバイスを行ってください。
@@ -117,25 +104,25 @@ def get_gemini_advice(profile, gokaku, category):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"エラー: {str(e)}"
+        return f"AI応答エラー: {str(e)}"
 
 # --- UI構築 ---
 st.title("🌌 AI統合運勢鑑定")
 st.markdown("姓名判断(詳細) × 言霊 × 占星術 × 月運戦略")
 
-# 【修正1-3】APIキーはここで設定（Secretsから読み込む）
+# 【修正4】APIキーはここで設定（Secretsから読み込む）
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 with st.form("input_form"):
     col_name1, col_name2 = st.columns(2)
     with col_name1:
-        sei = st.text_input("姓 (漢字)", placeholder="例：山田")
-        sei_yomi = st.text_input("姓 (よみ)", placeholder="例：やまだ")
-        # sei_kaku の手動入力欄は削除
+        sei = st.text_input("姓 (漢字)", placeholder="例：山田", max_chars=10)
+        sei_yomi = st.text_input("姓 (よみ)", placeholder="例：やまだ", max_chars=10)
+        # 手動画数入力欄は削除
     with col_name2:
-        mei = st.text_input("名 (漢字)", placeholder="例：太郎")
-        mei_yomi = st.text_input("名 (よみ)", placeholder="例：たろう")
-        # mei_kaku の手動入力欄は削除
+        mei = st.text_input("名 (漢字)", placeholder="例：太郎", max_chars=10)
+        mei_yomi = st.text_input("名 (よみ)", placeholder="例：たろう", max_chars=10)
+        # 手動画数入力欄は削除
     
     col_attr1, col_attr2 = st.columns(2)
     with col_attr1:
@@ -149,20 +136,23 @@ with st.form("input_form"):
     submitted = st.form_submit_button("詳細鑑定スタート ✨")
 
 if submitted:
-    # 【修正1-4】APIキーのチェック（Secretsの登録忘れがないか）
+    # 【修正5】APIキーのチェック（Secretsの登録忘れがないか）
     try:
-        _ = st.secrets["GOOGLE_API_KEY"] # APIキーが取得できるか試す
+        _ = st.secrets["GOOGLE_API_KEY"]
     except KeyError:
         st.error("Google Gemini APIキーがStreamlit Secretsに設定されていません。アプリ設定画面で「GOOGLE_API_KEY」として登録してください。")
         st.stop() # 処理を中断
-    
-    # 【修正2-3】try/exceptブロックを簡素化し、ロジックを修正
-    try:
-        # 画数計算 (自動化)
-        sei_strokes_list = get_kanji_strokes(sei) # 姓の漢字から画数リストを自動取得
-        mei_strokes_list = get_kanji_strokes(mei) # 名の漢字から画数リストを自動取得
         
-        # get_kanji_strokes内でエラーを処理しているので、ここでは計算のみ実行
+    if not sei or not mei:
+        st.error("姓と名の両方を漢字で入力してください。")
+        st.stop()
+    
+    try:
+        # 【修正6】画数計算 (自動化 - name-kakuライブラリを使用)
+        name_kakusuu = namekaku(sei, mei) # 姓と名をまとめて渡して画数情報を取得
+        sei_strokes_list = name_kakusuu.seis_kaku_list # 姓の画数リスト
+        mei_strokes_list = name_kakusuu.meis_kaku_list # 名の画数リスト
+        
         gokaku = calculate_gokaku(sei_strokes_list, mei_strokes_list)
         constellation = get_constellation(dob.month, dob.day)
         lifepath = calculate_lifepath(dob)
@@ -193,10 +183,5 @@ if submitted:
         st.balloons()
             
     except Exception as e:
-        # その他のエラー処理
-        st.error(f"予期せぬエラーが発生しました: {e}")
-
-# (補足: requirements.txt には、必ず以下の2行が必要です)
-# streamlit
-# google-generativeai
-# kanjistroke
+        # その他の予期せぬエラー処理
+        st.error(f"予期せぬエラーが発生しました。入力内容を確認してください: {e}")
