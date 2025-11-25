@@ -180,5 +180,5 @@ if submitted:
             st.markdown(advice)
             st.balloons()
             
-        except Exception as e:
+    except Exception as e:
             st.error(f"エラー: {e}")
