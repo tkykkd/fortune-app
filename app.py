@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import datetime
 # ★ 修正点1: kanjizeライブラリのインポート
-from kanjize import kanji2strokes
+from kanjize import kanji2stroke
 
 # --- ページ設定 ---
 st.set_page_config(page_title="AI統合運勢鑑定", page_icon="🌌", layout="wide")
@@ -34,7 +34,7 @@ def get_strokes(name_kanji: str):
             continue
         try:
             # kanjizeに画数計算を任せる
-            strokes.append(kanji2strokes(char))
+            strokes.append(kanji2stroke(char))
         except ValueError:
             # kanjizeが対応していない漢字の場合
             missing_kanji.append(char)
