@@ -59,7 +59,8 @@ def get_gemini_advice(profile, gokaku, category, api_key):
     today = datetime.date.today()
     current_period = f"{today.year}年{today.month}月"
 
-    prompt = f\"\"\"
+    # ★ここが修正箇所！バックスラッシュを削除しました
+    prompt = f"""
     あなたは、相談者の人生戦略を共に考える「専属の運命コンサルタント」です。
     以下のデータを元に、深く、信頼感のある分析とアドバイスを行ってください。
 
@@ -99,7 +100,7 @@ def get_gemini_advice(profile, gokaku, category, api_key):
 
     ### 4. コンサルタントからのメッセージ
     最後に、未来への希望となる、重みのある温かいエールを。
-    \"\"\"
+    """
     
     try:
         response = model.generate_content(prompt)
@@ -111,7 +112,7 @@ def get_gemini_advice(profile, gokaku, category, api_key):
 st.title("🌌 AI統合運勢鑑定")
 st.markdown("姓名判断(詳細) × 言霊 × 占星術 × 月運戦略")
 
-# APIキーはサイドバーで入力させる（セキュリティ対策）
+# APIキーはサイドバーで入力させる
 with st.sidebar:
     api_key = st.text_input("Google Gemini APIキー", type="password")
     st.markdown("[キーの取得はこちら(無料)](https://aistudio.google.com/app/apikey)")
