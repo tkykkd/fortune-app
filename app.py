@@ -34,7 +34,7 @@ def get_strokes(name_kanji: str):
             continue
         try:
             # kanjizeに画数計算を任せる
-            strokes.append(kanji2stroke(char))
+            strokes.append(kanji2strokes(char))
         except ValueError:
             # kanjizeが対応していない漢字の場合
             missing_kanji.append(char)
