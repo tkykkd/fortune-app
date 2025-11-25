@@ -1,4 +1,3 @@
 # requirements.txt の内容
 streamlit
 google-generativeai
-kanjize  # ★ この行を追加してください
